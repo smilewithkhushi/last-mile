@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.cognee_system/
+cognee_data/
+*.db
+*.sqlite
+.DS_Store
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
