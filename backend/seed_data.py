@@ -1,5 +1,5 @@
 """
-Synthetic delivery history for the StreetSense demo.
+Synthetic delivery history for the Last Mile demo.
 
 Three showcase stories + background filler:
   A. "The Fixed Buzzer"   — conflict reconciliation, recency wins

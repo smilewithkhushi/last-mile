@@ -23,7 +23,7 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  StreetSense — starting up"
+echo "  Last Mile — starting up"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Backend  →  http://localhost:8000"
 echo "  API docs →  http://localhost:8000/docs"

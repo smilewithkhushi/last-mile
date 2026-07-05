@@ -1,5 +1,5 @@
 """
-StreetSense memory layer — uses Cognee 1.x native remember/recall/improve/forget.
+Last Mile memory layer — uses Cognee 1.x native remember/recall/improve/forget.
 
 Each address gets its own Cognee dataset (named by address_id). Notes are stored
 as rich-text documents. recall() searches that graph for a synthesized briefing.
@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import cognee
-from cognee.infrastructure.llm.config import get_llm_config
 from dotenv import load_dotenv
 
 from .database import (
@@ -23,35 +22,33 @@ from .database import (
 from .models import ConfidenceLevel
 
 load_dotenv()
-logger = logging.getLogger("streetsense.memory")
+logger = logging.getLogger("last_mile.memory")
 
 STALE_DAYS = int(os.getenv("STALE_NOTE_DAYS", "30"))
-GLOBAL_DATASET = "streetsense_global"  # cross-address similarity for cold-start
+GLOBAL_DATASET = "last_mile_global"  # cross-address similarity for cold-start
 
 
 def _configure_cognee():
     """
-    Cognee reads LLM config from env vars via pydantic-settings.
-    We just make sure the relevant vars are set from our .env.
+    Cognee reads its own LLM/embedding config straight from env vars/.env via
+    pydantic-settings (LLM_PROVIDER, LLM_MODEL, LLM_ENDPOINT, LLM_API_KEY, and
+    the EMBEDDING_* equivalents) — so for "openai"/"anthropic"/"custom" (e.g.
+    NVIDIA NIM via build.nvidia.com's OpenAI-compatible endpoint) those values
+    should already be set correctly in .env and need no translation here.
+
+    Important: don't rewrite LLM_PROVIDER/LLM_MODEL in os.environ to a value
+    that differs from what's literally in the .env file. Cognee's submodules
+    call `dotenv.load_dotenv(override=True)` lazily on first import (deep in
+    pipeline execution), which reloads the .env file from disk and stomps any
+    in-process-only override right back to the file's raw value.
     """
     provider = os.getenv("LLM_PROVIDER", "openai")
     model = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
     if provider == "anthropic":
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    else:
-        api_key = os.getenv("OPENAI_API_KEY", "")
-
-    # Set env vars so Cognee's pydantic-settings picks them up
-    os.environ.setdefault("LLM_PROVIDER", provider)
-    os.environ.setdefault("LLM_MODEL", model)
-    os.environ.setdefault("LLM_API_KEY", api_key)
-
-    # Also set provider-specific keys
-    if provider == "anthropic":
-        os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
-    else:
-        os.environ.setdefault("OPENAI_API_KEY", api_key)
+        os.environ.setdefault("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY", ""))
+    elif provider == "openai":
+        os.environ.setdefault("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 
     logger.info("Cognee configured. Provider: %s, Model: %s", provider, model)
 

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
@@ -24,14 +24,16 @@ from .models import (
     AddressDashboardEntry,
     SeedResponse,
     ForgetResponse,
+    TranscriptionResponse,
     ConfidenceLevel,
 )
 from .memory import setup, remember, recall, improve, forget
 from .seed_data import get_all_seed_notes, get_seed_addresses
+from .transcribe import transcribe_audio, TranscriptionError
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("streetsense.api")
+logger = logging.getLogger("last_mile.api")
 
 FAILED_COST = float(os.getenv("FAILED_DELIVERY_COST", "15.0"))
 
@@ -44,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="StreetSense API",
+    title="Last Mile API",
     description="Persistent delivery-site memory — remember, recall, improve, forget.",
     version="0.1.0",
     lifespan=lifespan,
@@ -97,6 +99,29 @@ async def _background_improve(address_id: str):
         await improve(address_id)
     except Exception as e:
         logger.error("Background improve() failed for %s: %s", address_id, e)
+
+
+# ---------------------------------------------------------------------------
+# Voice-note transcription — driver speaks instead of types
+# ---------------------------------------------------------------------------
+
+@app.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe(audio: UploadFile = File(...)):
+    """
+    Accept a short audio clip recorded in the driver app and return transcribed
+    text to prefill the note field. Independent of the LLM_PROVIDER used for
+    the memory graph — always uses Whisper via OPENAI_API_KEY/WHISPER_API_KEY.
+    """
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(400, "No audio data received.")
+
+    try:
+        text = await transcribe_audio(audio_bytes, filename=audio.filename or "note.wav")
+    except TranscriptionError as e:
+        raise HTTPException(502, f"Transcription unavailable: {e}")
+
+    return TranscriptionResponse(text=text)
 
 
 # ---------------------------------------------------------------------------
