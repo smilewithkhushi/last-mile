@@ -36,9 +36,9 @@ Drivers leave a short note after every delivery. The next driver, whether it's t
 
 ---
 
-## 🖼️ See It In Action
+## 🏗️ Architecture
 
-
+<img src="assets/architecture_diagram.svg" alt="Last Mile System Architecture" width="100%"/>
 
 ---
 
@@ -82,15 +82,17 @@ India's quick-commerce and e-commerce platforms are pushing hard into Tier 2, 3,
 ## ⚡ Quick Start
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/smilewithkhushi/last-mile.git
 cd last-mile
-pip install -r requirements.txt
-# add your Cognee config / API keys to .env
-python seed_data.py     # loads the sample location dataset
-uvicorn main:app --reload
+cp .env.example .env        # then fill in your API keys
+bash run.sh                 # creates venv, installs deps, starts everything
 ```
 
-Then open `http://localhost:8000` 🎉
+- **Backend API** → http://localhost:8000  
+- **API docs** → http://localhost:8000/docs  
+- **Driver & Ops UI** → http://localhost:8501  
+
+Press `Ctrl+C` to stop both servers.
 
 ---
 
