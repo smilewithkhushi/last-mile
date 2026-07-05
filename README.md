@@ -1,98 +1,96 @@
 # Last Mile — Persistent Delivery-Site Memory
 
-> **Hackathon:** The Hangover Part AI: Where's My Context? (WeMakeDevs × Cognee)
+<img src="assets/logo2.png" alt="Last Mile Logo" width="180"/>
 
 Last-mile delivery loses money every time a new driver rediscovers facts that a previous driver already knew — broken buzzers, gate codes, "dog on property," "only home after 5pm." Last Mile is a memory layer that captures those facts once and surfaces them to every future driver, regardless of whether they've ever been to that address before.
 
 ---
 
-## Why graph + vector memory (why Cognee)?
+## 😵 The Problem
 
-Plain vector search solves the "is this note similar to my query" problem but can't answer "have two different drivers reported conflicting things about this buzzer in the last 30 days?" — that's a graph traversal question. Last Mile uses Cognee's hybrid architecture for both:
+In the city, the problem is knowing **which** Defence Colony, Sector 22 Area A, not Sector 22 Area B. Locality names repeat, sector numbers aren't intuitive, and a new driver ends up calling the customer just to get located.
 
-- **Graph layer** — address ↔ driver ↔ note ↔ delivery event relationships; conflict detection
-- **Vector layer** — cold-start similarity: new address with no history gets guidance from semantically similar past situations
-- **`improve()` / cognify** — turns "one driver said something once" into a confirmed operating fact; detects contradictions
-- **`forget()`** — genuine privacy/compliance use case: purge a customer's address data on request
+In a small town or village, the problem is bigger: **there often is no formal address to get wrong.** Google Maps gets a driver to the general area, then it's word of mouth from there. "Near the temple." "Ask for Salim's house by Pasha's shop." "Behind the yellow house, past the tea stall." This knowledge is never written down anywhere. It lives in one driver's head, and it's gone the moment they quit, which in gig delivery happens constantly.
 
----
+The result: repeat failed deliveries, damaged goods, and real cost to both drivers and customers, not just an annoying redelivery.
 
-## Quick start
-
-### 1. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Configure environment
-```bash
-cp .env.example .env
-# Edit .env — add your OPENAI_API_KEY (or ANTHROPIC_API_KEY)
-```
-By default `.env.example` is set up for [build.nvidia.com/models](https://build.nvidia.com/models)
-(NVIDIA NIM), which exposes an OpenAI-compatible API. Grab a free API key from the catalog and drop
-it into `LLM_API_KEY` / `EMBEDDING_API_KEY`. To use a different chat model from the catalog, swap the
-slug in `LLM_MODEL` (keep the `openai/` LiteLLM prefix, e.g. `openai/mistralai/mixtral-8x22b-instruct-v0.1`).
-To use OpenAI or Anthropic directly instead, set `LLM_PROVIDER=openai` or `LLM_PROVIDER=anthropic`.
-
-### 3. Start the backend
-```bash
-# From the project root
-uvicorn backend.main:app --reload
-```
-API runs at http://localhost:8000 — docs at http://localhost:8000/docs
-
-### 4. Start the frontend
-```bash
-# In a second terminal
-streamlit run frontend/app.py
-```
-UI runs at http://localhost:8501
-
-### 5. Load demo data
-In the Streamlit sidebar, click **"Load demo data"** — or hit the API directly:
-```bash
-curl -X POST http://localhost:8000/seed
-```
+> 📊 Only around **40% of Indian addresses** resolve precisely on major mapping APIs, and it's worse outside big cities. A single added landmark can shrink an ambiguous search area from **76 sq. km down to 3 sq. km.**
 
 ---
 
-## Memory lifecycle demo (3-part narrative)
+## 💡 The Idea
 
-| Scene | Address | What it shows |
-|---|---|---|
-| **Cold start** | 500 Pine Boulevard | No history → similarity-based fallback briefing |
-| **Rich memory** | 88 Oak Street, Unit 12 | 5 driver confirmations → HIGH confidence briefing (gate code, dog, porch drop) |
-| **Conflict resolution** | 142 Maple Ave, Unit 3A | Buzzer broken (3 reports) → buzzer fixed (2 recent) → improve() resolves recency |
-| **Problem address** | 33 Elm Court | 6 deliveries, 5 failed → ops dashboard flags cost impact |
-| **Stale data** | 201 Cedar Lane | Notes from 35+ days → flagged as potentially stale |
+Drivers leave a short note after every delivery. The next driver, whether it's their first day on the job or their five-hundredth, gets a synthesized briefing before they arrive: what's known about this spot, how sure we are, and where that knowledge came from.
+
+**What one driver learns, every driver knows.**
 
 ---
 
-## API reference
+## 🖼️ See It In Action
 
-| Method | Path | Cognee lifecycle |
-|---|---|---|
-| `POST` | `/notes` | `remember()` |
-| `GET` | `/briefing/{address_id}` | `recall()` |
-| `POST` | `/improve/{address_id}` | `improve()` |
-| `DELETE` | `/forget/{address_id}` | `forget()` |
-| `GET` | `/dashboard` | — (ops view) |
-| `POST` | `/seed` | loads demo dataset |
+
 
 ---
 
-## Business model
+## ✨ Features
 
-B2B SaaS API sold to regional/mid-market delivery operators, courier networks, and last-mile aggregators. Priced against the cost it displaces — a 15% reduction in failed-first-attempt rate across 1,000 weekly deliveries at $15/failure saves ~$1,170/week per operator. The cross-operator anonymized pattern-sharing roadmap item (learn once, benefit every courier serving that building) is a genuine network-effect moat.
+- 📝 **Note capture** — drivers log what they learn in seconds, landmark or formal address
+- 🔮 **Pre-arrival briefing** — a synthesized answer to "what should I know before I get there"
+- 🧩 **Cold-start fallback** — no history yet? similarity across comparable locations fills the gap
+- ⚖️ **Conflict reconciliation** — disagreeing reports get resolved, not just piled on top of each other
+- 📉 **Confidence that builds and decays** — one report isn't the same as five confirmations, and stale facts fade out
+- 🗣️ **Landmark & language aware matching** — "mandir" and "temple" point to the same thing
+- 🗑️ **Privacy-respecting forget** — old or sensitive notes get purged, not hoarded
 
 ---
 
-## Stack
+## 🧠 Why Cognee
 
-| Layer | Choice |
+This problem needs a **hybrid graph + vector memory**, not a plain database.
+
+| API | Job it actually does |
 |---|---|
-| Memory | Cognee (graph + vector hybrid) |
-| Backend | Python + FastAPI |
-| Frontend | Streamlit (Next.js upgrade path planned) |
-| Database | SQLite (structured metadata + ops dashboard) |
+| `remember()` | Structures every driver note into the graph: location, driver, note, and time, all connected |
+| `recall()` | Routes between exact graph facts and vector similarity for locations with no direct history |
+| `improve()` / memify | Reconciles conflicting reports and raises confidence as more drivers confirm the same thing |
+| `forget()` | Ages out stale facts and supports manual privacy purges |
+
+A pure vector search can't tell you a fact was just contradicted. A plain graph or SQL table can't generalize "near the temple" to a brand-new location it's never seen. This needs both working together, and that's the actual bet this project makes.
+
+---
+
+## 🌍 Why Now
+
+India's quick-commerce and e-commerce platforms are pushing hard into Tier 2, 3, and 4 towns because the big cities are saturated. That's exactly where formal addressing breaks down the most, and exactly where this problem gets worse before it gets better. Rural internet users in India already outnumber urban ones. This isn't a shrinking niche, it's the direction the whole market is moving.
+
+---
+
+## 🛠️ Tech Stack
+
+`Python` · `FastAPI` · `Cognee Cloud` · `[Streamlit]` 
+
+## ⚡ Quick Start
+
+```bash
+git clone <repo-url>
+cd last-mile
+pip install -r requirements.txt
+# add your Cognee config / API keys to .env
+python seed_data.py     # loads the sample location dataset
+uvicorn main:app --reload
+```
+
+Then open `http://localhost:8000` 🎉
+
+---
+
+## 💰 Why This Could Be a Real Business
+
+Failed first-attempt deliveries are a quiet, accepted cost across the industry, and almost every "AI for delivery" product out there is chasing routing, not memory. Last Mile is priced against the cost it removes and sold per-seat or per-delivery to regional couriers, quick-commerce platforms, and last-mile operators who feel this pain daily and can't build this kind of memory infrastructure themselves. The long-term moat: a fact learned once about a location helps every courier who delivers there, not just one company's drivers.
+
+
+---
+
+## 👥 Team
+
+`Khushi` · `Palak`
