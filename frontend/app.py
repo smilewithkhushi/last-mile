@@ -1,16 +1,33 @@
 """
-StreetSense — Streamlit frontend
+Last Mile — Streamlit frontend
 Two views: Driver Briefing  |  Ops Dashboard
 """
 
+import hashlib
 import streamlit as st
 import requests
 from datetime import datetime
+from audio_recorder_streamlit import audio_recorder
 
 API_BASE = "http://localhost:8000"
 
+# Quick-tap presets for the common cases — tapping one costs a driver ~1 second,
+# versus typing a full sentence between stops. Maps chip label -> note phrase.
+QUICK_TAGS = {
+    "No answer": "No answer at the door.",
+    "Left at door": "Left package at the door.",
+    "Left with neighbor": "Left with a neighbor.",
+    "Dog on property": "Dog on property — approach with caution.",
+    "Gate code needed": "Gate code required for entry.",
+    "Buzzer broken": "Buzzer is broken — knock or call instead.",
+    "Buzzer fixed": "Buzzer works now.",
+    "Call before arriving": "Call the customer before arriving.",
+    "Use side entrance": "Use the side entrance.",
+    "Signature required": "Signature required — hand to recipient only.",
+}
+
 st.set_page_config(
-    page_title="StreetSense",
+    page_title="Last Mile",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -40,7 +57,7 @@ def api_get(path: str, params: dict = None):
         r.raise_for_status()
         return r.json()
     except requests.exceptions.ConnectionError:
-        st.error("Cannot reach the StreetSense API. Is the backend running? (`uvicorn backend.main:app --reload`)")
+        st.error("Cannot reach the Last Mile API. Is the backend running? (`uvicorn backend.main:app --reload`)")
         return None
     except Exception as e:
         st.error(f"API error: {e}")
@@ -67,6 +84,21 @@ def api_delete(path: str):
         return None
 
 
+def transcribe_voice_note(audio_bytes: bytes) -> str | None:
+    """Send a recorded clip to the backend for Whisper transcription."""
+    try:
+        r = requests.post(
+            f"{API_BASE}/transcribe",
+            files={"audio": ("note.wav", audio_bytes, "audio/wav")},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()["text"]
+    except Exception as e:
+        st.warning(f"Voice transcription unavailable ({e}). Use quick tags or type below instead.")
+        return None
+
+
 def confidence_badge(level: str) -> str:
     labels = {
         "HIGH": "Confirmed",
@@ -85,7 +117,7 @@ def get_addresses() -> list[dict]:
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown('<h1 class="app-title">📦 StreetSense</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="app-title">📦 Last Mile</h1>', unsafe_allow_html=True)
     st.markdown('<p class="tagline">Delivery memory that outlasts the driver</p>', unsafe_allow_html=True)
     st.divider()
 
@@ -113,7 +145,7 @@ with st.sidebar:
 
 if view == "Driver App":
     st.title("Driver Briefing")
-    st.caption("What does StreetSense know about your next stop?")
+    st.caption("What does Last Mile know about your next stop?")
 
     tab_brief, tab_log = st.tabs(["Pre-arrival briefing", "Log a delivery note"])
 
@@ -207,15 +239,58 @@ if view == "Driver App":
         with col_e:
             status = st.selectbox("Delivery outcome", ["SUCCESS", "FAILED", "PARTIAL"])
 
-        note_text = st.text_area(
-            "What should the next driver know?",
-            placeholder="e.g. Buzzer works now. Use main entrance. Tenant home after 5pm.",
-            height=100,
+        st.markdown("**Quick tags** — tap what applies, no typing needed")
+        selected_tags = st.pills(
+            "Quick tags",
+            options=list(QUICK_TAGS.keys()),
+            selection_mode="multi",
+            label_visibility="collapsed",
+            key="log_quick_tags",
         )
 
+        st.markdown("**Or record a voice note**")
+        audio_bytes = audio_recorder(
+            text="Tap to record, tap again to stop",
+            icon_size="2x",
+            key="log_voice_recorder",
+        )
+
+        if audio_bytes:
+            audio_hash = hashlib.md5(audio_bytes).hexdigest()
+            if st.session_state.get("log_last_audio_hash") != audio_hash:
+                st.session_state["log_last_audio_hash"] = audio_hash
+                with st.spinner("Transcribing voice note..."):
+                    st.session_state["log_voice_text"] = transcribe_voice_note(audio_bytes) or ""
+
+        voice_text = st.session_state.get("log_voice_text", "")
+        if voice_text:
+            st.caption(f'🎙️ Heard: "{voice_text}"')
+
+        manual_extra = st.text_area(
+            "Anything else? (optional)",
+            placeholder="Only needed if quick tags + voice note don't cover it.",
+            height=70,
+        )
+
+        # Compose the final note from tags + voice + manual text — the driver
+        # rarely needs to type anything for the common cases.
+        composed_parts = [QUICK_TAGS[t] for t in selected_tags]
+        if voice_text:
+            composed_parts.append(voice_text)
+        if manual_extra:
+            composed_parts.append(manual_extra)
+        note_text = " ".join(composed_parts).strip()
+        if not note_text and status == "SUCCESS":
+            note_text = "Delivered without issues."
+
+        if note_text:
+            st.text_area("Note preview", value=note_text, height=80, disabled=True)
+
         if st.button("Submit note", type="primary"):
-            if not all([log_addr_id, log_addr_text, driver_name, driver_id, note_text]):
-                st.warning("Please fill in all fields.")
+            if not all([log_addr_id, log_addr_text, driver_name, driver_id]):
+                st.warning("Please fill in address and driver details.")
+            elif not note_text:
+                st.warning("Tap a quick tag, record a voice note, or add a few words first.")
             else:
                 payload = {
                     "address_id": log_addr_id,
@@ -229,6 +304,8 @@ if view == "Driver App":
                     result = api_post("/notes", json=payload)
                 if result:
                     st.success("Note saved. Memory graph updating in the background.")
+                    st.session_state["log_voice_text"] = ""
+                    st.session_state["log_last_audio_hash"] = None
 
 
 # ══════════════════════════════════════════════════════════════════════════════

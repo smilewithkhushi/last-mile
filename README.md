@@ -1,14 +1,14 @@
-# StreetSense — Persistent Delivery-Site Memory
+# Last Mile — Persistent Delivery-Site Memory
 
 > **Hackathon:** The Hangover Part AI: Where's My Context? (WeMakeDevs × Cognee)
 
-Last-mile delivery loses money every time a new driver rediscovers facts that a previous driver already knew — broken buzzers, gate codes, "dog on property," "only home after 5pm." StreetSense is a memory layer that captures those facts once and surfaces them to every future driver, regardless of whether they've ever been to that address before.
+Last-mile delivery loses money every time a new driver rediscovers facts that a previous driver already knew — broken buzzers, gate codes, "dog on property," "only home after 5pm." Last Mile is a memory layer that captures those facts once and surfaces them to every future driver, regardless of whether they've ever been to that address before.
 
 ---
 
 ## Why graph + vector memory (why Cognee)?
 
-Plain vector search solves the "is this note similar to my query" problem but can't answer "have two different drivers reported conflicting things about this buzzer in the last 30 days?" — that's a graph traversal question. StreetSense uses Cognee's hybrid architecture for both:
+Plain vector search solves the "is this note similar to my query" problem but can't answer "have two different drivers reported conflicting things about this buzzer in the last 30 days?" — that's a graph traversal question. Last Mile uses Cognee's hybrid architecture for both:
 
 - **Graph layer** — address ↔ driver ↔ note ↔ delivery event relationships; conflict detection
 - **Vector layer** — cold-start similarity: new address with no history gets guidance from semantically similar past situations
@@ -29,6 +29,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env — add your OPENAI_API_KEY (or ANTHROPIC_API_KEY)
 ```
+By default `.env.example` is set up for [build.nvidia.com/models](https://build.nvidia.com/models)
+(NVIDIA NIM), which exposes an OpenAI-compatible API. Grab a free API key from the catalog and drop
+it into `LLM_API_KEY` / `EMBEDDING_API_KEY`. To use a different chat model from the catalog, swap the
+slug in `LLM_MODEL` (keep the `openai/` LiteLLM prefix, e.g. `openai/mistralai/mixtral-8x22b-instruct-v0.1`).
+To use OpenAI or Anthropic directly instead, set `LLM_PROVIDER=openai` or `LLM_PROVIDER=anthropic`.
 
 ### 3. Start the backend
 ```bash

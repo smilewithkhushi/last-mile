@@ -77,3 +77,7 @@ class ForgetResponse(BaseModel):
     address_id: str
     message: str
     notes_purged: int
+
+
+class TranscriptionResponse(BaseModel):
+    text: str
