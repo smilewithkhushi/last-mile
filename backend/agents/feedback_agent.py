@@ -17,6 +17,7 @@ from enum import Enum
 import cognee
 
 from ._llm import call_llm
+from ._cloud import cloud_remember
 
 logger = logging.getLogger("last_mile.agents.feedback")
 
@@ -131,10 +132,13 @@ class FeedbackAgent:
         except Exception as e:
             logger.error("FeedbackAgent remember() failed for %s: %s", address_id, e)
 
+        # Mirror to Cognee Cloud so this agent run appears in the Sessions dashboard
+        await cloud_remember(correction_doc, agent_name="feedback-agent", address_id=address_id)
+
         return FeedbackResult(
             address_id=address_id,
             action_taken="corrected",
-            message=f"Inaccurate briefing corrected. New facts stored for future drivers.",
+            message="Inaccurate briefing corrected. New facts stored for future drivers.",
             correction_stored=stored,
         )
 
@@ -164,6 +168,8 @@ class FeedbackAgent:
             stored = True
         except Exception as e:
             logger.error("FeedbackAgent partial store failed for %s: %s", address_id, e)
+
+        await cloud_remember(partial_doc, agent_name="feedback-agent", address_id=address_id)
 
         return FeedbackResult(
             address_id=address_id,

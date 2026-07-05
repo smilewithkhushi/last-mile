@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import cognee
 
 from ._llm import call_llm
+from ._cloud import cloud_remember
 
 logger = logging.getLogger("last_mile.agents.risk")
 
@@ -102,6 +103,20 @@ Respond with a JSON object in this exact format:
 
         raw = await call_llm(prompt, system=SYSTEM_PROMPT, temperature=0.2)
         assessment = self._parse_assessment(address_id, raw)
+
+        # Log assessment to Cognee Cloud so it appears in Sessions dashboard
+        run_doc = (
+            f"RISK ASSESSMENT for {address_text}\n"
+            f"Date: {datetime.utcnow().date().isoformat()}\n"
+            f"Planned hour: {planned_str}\n"
+            f"Risk level: {assessment.risk_level} (score: {assessment.risk_score:.2f})\n"
+            f"Reasons: {'; '.join(assessment.reasons)}\n"
+            f"Recommendation: {assessment.recommendation}\n"
+            f"Best time window: {assessment.best_time_window}\n"
+            f"Call ahead: {assessment.should_call_ahead}\n"
+        )
+        await cloud_remember(run_doc, agent_name="risk-agent", address_id=address_id)
+
         return assessment
 
     def _compute_stats(self, notes: list[dict]) -> dict:

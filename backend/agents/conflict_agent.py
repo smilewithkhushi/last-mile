@@ -16,6 +16,7 @@ from dataclasses import dataclass
 import cognee
 
 from ._llm import call_llm
+from ._cloud import cloud_remember
 
 logger = logging.getLogger("last_mile.agents.conflict")
 
@@ -131,3 +132,6 @@ Ignore conflicts that are clearly time-sequenced improvements (e.g. broken then 
             logger.info("ConflictAgent stored resolution for %s", address_id)
         except Exception as e:
             logger.error("ConflictAgent failed to store resolution: %s", e)
+
+        # Mirror to Cognee Cloud so this agent run appears in the Sessions dashboard
+        await cloud_remember(doc, agent_name="conflict-agent", address_id=address_id)

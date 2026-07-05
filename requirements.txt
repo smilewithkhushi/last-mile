@@ -12,4 +12,5 @@ python-multipart>=0.0.12
 watchdog>=6.0.0
 audio-recorder-streamlit>=0.0.10
 openai>=1.40.0
+litellm>=1.91.0
 fastembed>=0.4.0
