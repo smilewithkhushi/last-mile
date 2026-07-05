@@ -25,11 +25,14 @@ from .models import (
     SeedResponse,
     ForgetResponse,
     TranscriptionResponse,
+    LandmarkResolveRequest,
+    LandmarkResolveResponse,
     ConfidenceLevel,
 )
 from .memory import setup, remember, recall, improve, forget
 from .seed_data import get_all_seed_notes, get_seed_addresses
 from .transcribe import transcribe_audio, TranscriptionError
+from .landmarks import resolve_landmark
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -122,6 +125,24 @@ async def transcribe(audio: UploadFile = File(...)):
         raise HTTPException(502, f"Transcription unavailable: {e}")
 
     return TranscriptionResponse(text=text)
+
+
+# ---------------------------------------------------------------------------
+# Landmark-based addressing — for deliveries with no formal address at all
+# ---------------------------------------------------------------------------
+
+@app.post("/landmarks/resolve", response_model=LandmarkResolveResponse)
+def resolve_landmark_endpoint(payload: LandmarkResolveRequest):
+    """
+    Resolve a free-text landmark description ("near the temple, ask for
+    Salim's house") to an address_id — reusing an existing cluster if a
+    semantically similar description was seen before, otherwise creating a
+    new one. The returned address_id/address_text plug directly into the
+    existing /notes and /briefing endpoints, same as a formal address.
+    """
+    if not payload.description.strip():
+        raise HTTPException(400, "Landmark description cannot be empty.")
+    return LandmarkResolveResponse(**resolve_landmark(payload.description, force_new=payload.force_new))
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "last_mile.db"
+# Named SQLITE_DB_PATH, not DB_PATH — Cognee's own RelationalConfig reads a
+# DB_PATH env var itself (a directory for its internal relational engine), so
+# reusing that name collided and broke Cognee's migration lock file handling.
+DB_PATH = Path(os.getenv("SQLITE_DB_PATH", str(Path(__file__).parent / "last_mile.db")))
 
 
 def get_conn():
@@ -37,6 +40,13 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_notes_address ON delivery_notes(address_id);
         CREATE INDEX IF NOT EXISTS idx_notes_timestamp ON delivery_notes(timestamp);
+
+        CREATE TABLE IF NOT EXISTS landmarks (
+            address_id      TEXT PRIMARY KEY,
+            description     TEXT NOT NULL,
+            embedding       TEXT NOT NULL,
+            created_at      TEXT NOT NULL
+        );
     """)
     conn.commit()
     conn.close()
@@ -145,3 +155,21 @@ def count_all_notes() -> int:
     count = conn.execute("SELECT COUNT(*) FROM delivery_notes").fetchone()[0]
     conn.close()
     return count
+
+
+def insert_landmark(address_id: str, description: str, embedding_json: str):
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO landmarks (address_id, description, embedding, created_at)
+           VALUES (?, ?, ?, ?)""",
+        (address_id, description, embedding_json, datetime.utcnow().isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_all_landmarks() -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM landmarks").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

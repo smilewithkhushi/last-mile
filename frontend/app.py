@@ -4,12 +4,13 @@ Two views: Driver Briefing  |  Ops Dashboard
 """
 
 import hashlib
+import os
 import streamlit as st
 import requests
 from datetime import datetime
 from audio_recorder_streamlit import audio_recorder
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
 # Quick-tap presets for the common cases — tapping one costs a driver ~1 second,
 # versus typing a full sentence between stops. Maps chip label -> note phrase.
@@ -24,6 +25,17 @@ QUICK_TAGS = {
     "Call before arriving": "Call the customer before arriving.",
     "Use side entrance": "Use the side entrance.",
     "Signature required": "Signature required — hand to recipient only.",
+}
+
+# Quick tags for landmark-based deliveries (no formal address) — villages and
+# areas where the location is a description, not a street address.
+LANDMARK_QUICK_TAGS = {
+    "Near temple/mandir": "Landmark: near the temple/mandir.",
+    "Ask locals for directions": "No signage here — ask locals for directions.",
+    "Muddy/unpaved road": "Road is muddy or unpaved — care needed, especially in monsoon.",
+    "Not accessible in monsoon": "This route is not accessible during monsoon season.",
+    "No mobile network": "Patchy or no mobile network at this location.",
+    "Call on arrival": "Call the customer on arrival — no clear landmark visible from the road.",
 }
 
 st.set_page_config(
@@ -114,6 +126,80 @@ def get_addresses() -> list[dict]:
     return data if data else []
 
 
+def landmark_picker(key_prefix: str) -> tuple[str, str] | None:
+    """
+    Free-text landmark description input ("near the temple, ask for Salim's
+    house") for deliveries with no formal address. Resolves it against
+    previously seen landmarks by similarity — confidently reusing a close
+    match, or asking the driver to confirm when it's ambiguous rather than
+    silently guessing. Returns (address_id, address_text) once resolved.
+    """
+    pending_key = f"{key_prefix}_landmark_pending"
+    resolved_key = f"{key_prefix}_landmark_resolved"
+    st.session_state.setdefault(pending_key, None)
+    st.session_state.setdefault(resolved_key, None)
+
+    description = st.text_area(
+        "Describe the location",
+        placeholder="e.g. Near Shiv Mandir, ask for Salim's house near Pasha's shop, Rampur village",
+        key=f"{key_prefix}_landmark_input",
+        height=80,
+    )
+
+    if st.button("Find this location", key=f"{key_prefix}_landmark_resolve_btn"):
+        if not description.strip():
+            st.warning("Describe the location first.")
+        else:
+            with st.spinner("Checking memory for a similar landmark..."):
+                result = api_post("/landmarks/resolve", json={"description": description.strip()})
+            if result:
+                if result["needs_confirmation"]:
+                    st.session_state[pending_key] = {
+                        **result["possible_match"],
+                        "query_description": description.strip(),
+                    }
+                    st.session_state[resolved_key] = None
+                else:
+                    st.session_state[pending_key] = None
+                    st.session_state[resolved_key] = (result["address_id"], result["address_text"])
+
+    pending = st.session_state.get(pending_key)
+    if pending:
+        st.info(
+            f"This sounds similar to a location already in memory "
+            f"({pending['similarity'] * 100:.0f}% match):\n\n"
+            f"**\"{pending['description']}\"**\n\nIs this the same place?"
+        )
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button(
+                "Yes, same place", key=f"{key_prefix}_landmark_confirm_yes",
+                type="primary", use_container_width=True,
+            ):
+                st.session_state[resolved_key] = (pending["address_id"], pending["description"])
+                st.session_state[pending_key] = None
+                st.rerun()
+        with col_no:
+            if st.button(
+                "No, different place", key=f"{key_prefix}_landmark_confirm_no",
+                use_container_width=True,
+            ):
+                with st.spinner("Creating new location record..."):
+                    result = api_post(
+                        "/landmarks/resolve",
+                        json={"description": pending["query_description"], "force_new": True},
+                    )
+                if result:
+                    st.session_state[resolved_key] = (result["address_id"], result["address_text"])
+                st.session_state[pending_key] = None
+                st.rerun()
+
+    resolved = st.session_state.get(resolved_key)
+    if resolved:
+        st.success(f"Location: **{resolved[1]}**")
+    return resolved
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -151,27 +237,43 @@ if view == "Driver App":
 
     # ── Tab: Briefing ────────────────────────────────────────────────────────
     with tab_brief:
-        addresses = get_addresses()
-        address_options = {a["address_text"]: a for a in addresses}
+        brief_mode = st.radio(
+            "Address type",
+            ["Formal address", "Landmark / no formal address"],
+            horizontal=True,
+            key="brief_mode",
+        )
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            selected_label = st.selectbox(
-                "Select delivery address",
-                options=list(address_options.keys()) + ["Enter address manually..."],
-            )
-        with col2:
-            st.write("")
-            st.write("")
-            get_brief = st.button("Get briefing", type="primary", use_container_width=True)
+        addr_id = addr_text = None
+        get_brief = False
 
-        if selected_label == "Enter address manually...":
-            manual_addr = st.text_input("Address", placeholder="e.g. 500 Pine Boulevard, Springfield")
-            addr_id = manual_addr.lower().replace(" ", "_").replace(",", "")
-            addr_text = manual_addr
+        if brief_mode == "Formal address":
+            addresses = get_addresses()
+            address_options = {a["address_text"]: a for a in addresses}
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                selected_label = st.selectbox(
+                    "Select delivery address",
+                    options=list(address_options.keys()) + ["Enter address manually..."],
+                )
+            with col2:
+                st.write("")
+                st.write("")
+                get_brief = st.button("Get briefing", type="primary", use_container_width=True)
+
+            if selected_label == "Enter address manually...":
+                manual_addr = st.text_input("Address", placeholder="e.g. 500 Pine Boulevard, Springfield")
+                addr_id = manual_addr.lower().replace(" ", "_").replace(",", "")
+                addr_text = manual_addr
+            else:
+                addr_id = address_options[selected_label]["address_id"]
+                addr_text = selected_label
         else:
-            addr_id = address_options[selected_label]["address_id"]
-            addr_text = selected_label
+            resolved = landmark_picker("brief")
+            if resolved:
+                addr_id, addr_text = resolved
+                get_brief = st.button("Get briefing", type="primary", key="brief_landmark_get")
 
         if get_brief and addr_id:
             with st.spinner("Querying memory..."):
@@ -216,21 +318,34 @@ if view == "Driver App":
         st.subheader("Post-delivery note")
         st.caption("Your note becomes memory for the next driver at this address.")
 
-        addresses = get_addresses()
-        address_options = {a["address_text"]: a for a in addresses}
-
-        selected_for_log = st.selectbox(
-            "Address",
-            options=list(address_options.keys()) + ["Enter manually..."],
-            key="log_address_select",
+        log_mode = st.radio(
+            "Address type",
+            ["Formal address", "Landmark / no formal address"],
+            horizontal=True,
+            key="log_mode",
         )
 
-        if selected_for_log == "Enter manually...":
-            log_addr_text = st.text_input("Address text", key="log_addr_text_manual")
-            log_addr_id = log_addr_text.lower().replace(" ", "_").replace(",", "")
+        if log_mode == "Formal address":
+            addresses = get_addresses()
+            address_options = {a["address_text"]: a for a in addresses}
+
+            selected_for_log = st.selectbox(
+                "Address",
+                options=list(address_options.keys()) + ["Enter manually..."],
+                key="log_address_select",
+            )
+
+            if selected_for_log == "Enter manually...":
+                log_addr_text = st.text_input("Address text", key="log_addr_text_manual")
+                log_addr_id = log_addr_text.lower().replace(" ", "_").replace(",", "")
+            else:
+                log_addr_id = address_options[selected_for_log]["address_id"]
+                log_addr_text = selected_for_log
+            active_quick_tags = QUICK_TAGS
         else:
-            log_addr_id = address_options[selected_for_log]["address_id"]
-            log_addr_text = selected_for_log
+            resolved = landmark_picker("log")
+            log_addr_id, log_addr_text = resolved if resolved else (None, None)
+            active_quick_tags = LANDMARK_QUICK_TAGS
 
         col_d, col_e = st.columns(2)
         with col_d:
@@ -242,10 +357,10 @@ if view == "Driver App":
         st.markdown("**Quick tags** — tap what applies, no typing needed")
         selected_tags = st.pills(
             "Quick tags",
-            options=list(QUICK_TAGS.keys()),
+            options=list(active_quick_tags.keys()),
             selection_mode="multi",
             label_visibility="collapsed",
-            key="log_quick_tags",
+            key=f"log_quick_tags_{log_mode}",
         )
 
         st.markdown("**Or record a voice note**")
@@ -274,7 +389,7 @@ if view == "Driver App":
 
         # Compose the final note from tags + voice + manual text — the driver
         # rarely needs to type anything for the common cases.
-        composed_parts = [QUICK_TAGS[t] for t in selected_tags]
+        composed_parts = [active_quick_tags[t] for t in selected_tags]
         if voice_text:
             composed_parts.append(voice_text)
         if manual_extra:

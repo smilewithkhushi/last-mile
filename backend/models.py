@@ -81,3 +81,24 @@ class ForgetResponse(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     text: str
+
+
+class LandmarkResolveRequest(BaseModel):
+    description: str
+    force_new: bool = False  # driver confirmed "no, this is a different place"
+
+
+class PossibleLandmarkMatch(BaseModel):
+    address_id: str
+    description: str
+    similarity: float
+
+
+class LandmarkResolveResponse(BaseModel):
+    address_id: Optional[str] = None
+    address_text: Optional[str] = None
+    is_new: bool
+    needs_confirmation: bool = False
+    matched_description: Optional[str] = None
+    similarity: Optional[float] = None
+    possible_match: Optional[PossibleLandmarkMatch] = None

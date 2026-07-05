@@ -57,6 +57,57 @@ curl -X POST http://localhost:8000/seed
 
 ---
 
+## Deploy to Railway
+
+This is two services (FastAPI backend + Streamlit frontend) from one repo. No Dockerfile needed —
+Railway's Railpack builder auto-detects Python from `requirements.txt`.
+
+### 1. Push to GitHub, then create a Railway project from that repo
+Railway will create one service by default — treat that as the **backend**.
+
+### 2. Configure the backend service
+- **Settings → Config-as-code → Config File Path** → `backend/railway.json`
+  (this sets the build/start command and health check — see that file)
+- **Settings → Networking → Generate Domain** to get a public URL
+- **Variables** — add:
+  ```
+  LLM_PROVIDER=custom
+  LLM_MODEL=openai/meta/llama-3.1-8b-instruct
+  LLM_ENDPOINT=https://integrate.api.nvidia.com/v1
+  LLM_API_KEY=nvapi-...
+  EMBEDDING_PROVIDER=fastembed
+  EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+  EMBEDDING_DIMENSIONS=384
+  FAILED_DELIVERY_COST=15.0
+  STALE_NOTE_DAYS=30
+  ```
+  (swap in `openai`/`anthropic` + their key instead, if you'd rather not use NVIDIA NIM)
+
+### 3. Add a second service for the frontend
+**New → GitHub Repo** → same repo again. Then:
+- **Settings → Config-as-code → Config File Path** → `frontend/railway.json`
+- **Settings → Networking → Generate Domain**
+- **Variables** — add `API_BASE=https://<backend-service-domain-from-step-2>`
+
+### 4. Persistence (optional but recommended)
+Railway's container filesystem doesn't survive redeploys. To keep delivery notes and the memory
+graph across deploys, attach a **Volume** to the backend service (e.g. mounted at `/data`) and add:
+```
+SQLITE_DB_PATH=/data/last_mile.db
+DATA_ROOT_DIRECTORY=/data/.data_storage
+SYSTEM_ROOT_DIRECTORY=/data/.cognee_system
+CACHE_ROOT_DIRECTORY=/data/.cognee_cache
+```
+Without a volume, the app still works — you'll just need to hit "Load demo data" again after each deploy.
+
+### 5. Seed the demo data
+Once both services are deployed, click **"Load demo data"** in the frontend, or:
+```bash
+curl -X POST https://<backend-service-domain>/seed
+```
+
+---
+
 ## Memory lifecycle demo (3-part narrative)
 
 | Scene | Address | What it shows |
@@ -79,6 +130,33 @@ curl -X POST http://localhost:8000/seed
 | `DELETE` | `/forget/{address_id}` | `forget()` |
 | `GET` | `/dashboard` | — (ops view) |
 | `POST` | `/seed` | loads demo dataset |
+| `POST` | `/landmarks/resolve` | resolves a landmark description to an address_id |
+| `POST` | `/transcribe` | voice-note transcription |
+
+---
+
+## Landmark-based addressing
+
+The urban framing of this problem ("which Sector 22?") is the smaller, better-served version. The
+harder one: villages and areas with **no formal address at all** — delivery is human-navigated
+("near the temple, ask for Salim's house near Pasha's shop"). `backend/landmarks.py` lets a
+delivery location be a free-text landmark description instead of a formal address:
+
+- The description is embedded and compared against every previously seen landmark, so "near the
+  temple" from one driver and "Shiv Mandir ke paas, peeche wala ghar" from another collapse onto
+  the same memory instead of fragmenting into duplicate, un-findable records.
+- A confident match (similarity ≥ `LANDMARK_AUTO_MATCH_THRESHOLD`, default `0.65`) reuses the
+  existing cluster immediately. An ambiguous one (≥ `LANDMARK_SUGGEST_THRESHOLD`, default `0.45`)
+  is surfaced as "did you mean this place?" for the driver to confirm — a wrong auto-merge (sending
+  the next driver to the wrong physical location) is worse than asking once.
+- Runs a small multilingual paraphrase embedding model locally (`fastembed`, no API key), calibrated
+  against Hindi/English mixed-language test pairs — a plain English-only model couldn't reliably
+  tell same-place paraphrases apart from different-place descriptions at all.
+- Once resolved, a landmark cluster is just an `address_id` like any other — `/notes`, `/briefing`,
+  `/improve`, `/forget`, and the ops dashboard all work on it unchanged.
+
+Try it in the Streamlit driver app: both the briefing and log-note tabs have a
+**"Landmark / no formal address"** mode.
 
 ---
 
