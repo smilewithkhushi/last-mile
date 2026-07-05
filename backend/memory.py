@@ -20,12 +20,16 @@ from .database import (
     mark_conflict,
 )
 from .models import ConfidenceLevel
+from .agents import ConflictResolutionAgent, ColdStartAgent
 
 load_dotenv()
 logger = logging.getLogger("last_mile.memory")
 
 STALE_DAYS = int(os.getenv("STALE_NOTE_DAYS", "30"))
 GLOBAL_DATASET = "last_mile_global"  # cross-address similarity for cold-start
+
+_conflict_agent = ConflictResolutionAgent(stale_days=STALE_DAYS)
+_cold_start_agent = ColdStartAgent()
 
 
 def _configure_cognee():
@@ -139,18 +143,24 @@ async def remember(note: dict):
 
 async def improve(address_id: str):
     """
-    Explicitly trigger Cognee's graph-building and reconciliation for an address.
-    `improve()` in Cognee 1.x does a deeper memification pass — resolves entity
-    conflicts and strengthens edges between confirmed facts.
+    Trigger Cognee graph-building + run the Conflict Resolution Agent.
+    The agent replaces the old keyword heuristic with genuine LLM reasoning,
+    and stores any resolved ground truth back into Cognee automatically.
     """
     try:
         await cognee.improve(dataset=address_id)
         update_cognified(address_id)
 
         notes = get_notes_for_address(address_id)
-        if _detect_conflicts(notes):
-            mark_conflict(address_id)
-            logger.info("improve() — conflict flagged at %s", address_id)
+        if notes:
+            address_text = notes[0].get("address_text", address_id)
+            verdict = await _conflict_agent.run(address_id, address_text, notes)
+            if verdict.has_conflict:
+                mark_conflict(address_id)
+                logger.info(
+                    "ConflictAgent flagged conflict at %s: %s",
+                    address_id, verdict.conflicting_facts,
+                )
 
         logger.info("improve() — graph updated for %s", address_id)
     except Exception as e:
@@ -179,7 +189,9 @@ async def recall(address_id: str, address_text: str) -> dict:
     )
 
     if confidence == ConfidenceLevel.COLD_START:
-        briefing, key_facts = await _cold_start_briefing(address_text)
+        result = await _cold_start_agent.run(address_text)
+        briefing = result.briefing
+        key_facts = result.key_facts
     else:
         briefing, key_facts = await _semantic_briefing(address_id, address_text, notes, confidence)
 

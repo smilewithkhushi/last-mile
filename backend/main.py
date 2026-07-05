@@ -15,6 +15,7 @@ from .database import (
     get_all_address_stats,
     purge_address,
     count_all_notes,
+    mark_conflict,
 )
 from .models import (
     DeliveryNoteCreate,
@@ -26,8 +27,18 @@ from .models import (
     ForgetResponse,
     TranscriptionResponse,
     ConfidenceLevel,
+    RiskResponse,
+    FeedbackRequest,
+    FeedbackResponse,
+    ConflictResponse,
 )
 from .memory import setup, remember, recall, improve, forget
+from .agents import RiskAgent, FeedbackAgent, ConflictResolutionAgent
+from .agents.feedback_agent import FeedbackRating
+
+_risk_agent = RiskAgent(failed_cost=float(os.getenv("FAILED_DELIVERY_COST", "15.0")))
+_feedback_agent = FeedbackAgent()
+_conflict_agent = ConflictResolutionAgent()
 from .seed_data import get_all_seed_notes, get_seed_addresses
 from .transcribe import transcribe_audio, TranscriptionError
 
@@ -287,6 +298,99 @@ async def seed_demo_data(background: BackgroundTasks):
         message="Demo data loaded. Memory graphs building in the background.",
         notes_ingested=ingested,
         addresses_seeded=len(addresses),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent 2: Pre-dispatch risk assessment
+# ---------------------------------------------------------------------------
+
+@app.get("/risk/{address_id}", response_model=RiskResponse)
+async def get_risk(address_id: str, address_text: str = "", hour: int | None = None):
+    """
+    Risk Agent: assesses delivery risk before dispatch.
+    Pass ?hour=14 (24h) for time-aware risk scoring.
+    """
+    notes = get_notes_for_address(address_id)
+    if not address_text and notes:
+        address_text = notes[0]["address_text"]
+    elif not address_text:
+        address_text = address_id.replace("_", " ")
+
+    from .database import get_conn
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT conflicts FROM address_meta WHERE address_id=?", (address_id,)
+    ).fetchone()
+    conn.close()
+    conflict_flag = row["conflicts"] if row else 0
+
+    assessment = await _risk_agent.run(
+        address_id=address_id,
+        address_text=address_text,
+        notes=notes,
+        planned_hour=hour,
+        conflict_flag=conflict_flag,
+    )
+    return RiskResponse(**assessment.__dict__)
+
+
+# ---------------------------------------------------------------------------
+# Agent 4: Driver feedback loop
+# ---------------------------------------------------------------------------
+
+@app.post("/feedback", response_model=FeedbackResponse)
+async def submit_feedback(payload: FeedbackRequest):
+    """
+    Feedback Agent: driver rates the briefing after delivery.
+    - accurate   → improve() reinforces the knowledge graph
+    - inaccurate → LLM generates correction → stored via remember()
+    - partial    → correction flagged for review
+    """
+    try:
+        rating = FeedbackRating(payload.rating)
+    except ValueError:
+        raise HTTPException(400, f"rating must be one of: accurate, inaccurate, partial")
+
+    result = await _feedback_agent.run(
+        address_id=payload.address_id,
+        address_text=payload.address_text,
+        rating=rating,
+        original_briefing=payload.original_briefing,
+        driver_comment=payload.driver_comment,
+        driver_id=payload.driver_id,
+        driver_name=payload.driver_name,
+    )
+    return FeedbackResponse(**result.__dict__)
+
+
+# ---------------------------------------------------------------------------
+# Agent 1: On-demand conflict resolution
+# ---------------------------------------------------------------------------
+
+@app.post("/resolve/{address_id}", response_model=ConflictResponse)
+async def resolve_conflicts(address_id: str, address_text: str = ""):
+    """
+    Conflict Resolution Agent: explicitly run LLM-based conflict analysis
+    for an address and store the resolution into Cognee.
+    """
+    notes = get_notes_for_address(address_id)
+    if not notes:
+        raise HTTPException(404, f"No notes found for address '{address_id}'")
+    if not address_text:
+        address_text = notes[0]["address_text"]
+
+    verdict = await _conflict_agent.run(address_id, address_text, notes)
+    if verdict.has_conflict:
+        mark_conflict(address_id)
+
+    return ConflictResponse(
+        address_id=address_id,
+        has_conflict=verdict.has_conflict,
+        conflicting_facts=verdict.conflicting_facts,
+        resolved_truth=verdict.resolved_truth,
+        reasoning=verdict.reasoning,
+        confidence=verdict.confidence,
     )
 
 

@@ -10,7 +10,6 @@
 [![Cognee](https://img.shields.io/badge/memory-Cognee-blueviolet)](https://www.cognee.ai)
 [![Python](https://img.shields.io/badge/backend-Python%20%2F%20FastAPI-3776AB)](https://fastapi.tiangolo.com/)
 
-[🎥 Demo Video](#) · [🚀 Live Demo](#)
 
 </div>
 
@@ -24,7 +23,7 @@ In a small town or village, the problem is bigger: **there often is no formal ad
 
 The result: repeat failed deliveries, damaged goods, and real cost to both drivers and customers, not just an annoying redelivery.
 
-> 📊 Only around **40% of Indian addresses** resolve precisely on major mapping APIs, and it's worse outside big cities. A single added landmark can shrink an ambiguous search area from **76 sq. km down to 3 sq. km.**
+> For example: 📊 Only around **40% of Indian addresses** resolve precisely on major mapping APIs, and it's worse outside big cities. A single added landmark can shrink an ambiguous search area from **76 sq. km down to 3 sq. km.**
 
 ---
 
@@ -66,6 +65,21 @@ This problem needs a **hybrid graph + vector memory**, not a plain database.
 | `forget()` | Ages out stale facts and supports manual privacy purges |
 
 A pure vector search can't tell you a fact was just contradicted. A plain graph or SQL table can't generalize "near the temple" to a brand-new location it's never seen. This needs both working together, and that's the actual bet this project makes.
+
+---
+
+## 🤖 Agents
+
+Four agents sit on top of the Cognee memory layer, each handling a distinct part of the delivery intelligence loop.
+
+| Agent | Trigger | What it does |
+|---|---|---|
+| **Conflict Resolution** | After every `improve()` call | LLM reads recent notes, detects real contradictions, writes a resolved ground truth back into the graph |
+| **Risk** | Before dispatch (`GET /risk/{id}?hour=14`) | Analyses failure rate, time-of-day patterns, and conflict history to return a risk level + driver recommendation |
+| **Cold Start** | When an address has zero history | Chains 3 targeted `recall()` queries against the global dataset, then synthesises a briefing from similar delivery patterns |
+| **Feedback Loop** | After delivery (`POST /feedback`) | Driver marks briefing accurate or wrong — accurate triggers `improve()`, wrong triggers a corrected `remember()` |
+
+The agents share one LLM call path (`agents/_llm.py`) that reads the same provider config as Cognee, so swapping the model in `.env` affects everything uniformly.
 
 ---
 

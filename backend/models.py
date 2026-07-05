@@ -81,3 +81,43 @@ class ForgetResponse(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     text: str
+
+
+# ---------------------------------------------------------------------------
+# Agent response models
+# ---------------------------------------------------------------------------
+
+class RiskResponse(BaseModel):
+    address_id: str
+    risk_level: str
+    risk_score: float
+    reasons: list[str]
+    recommendation: str
+    best_time_window: str
+    should_call_ahead: bool
+
+
+class FeedbackRequest(BaseModel):
+    address_id: str
+    address_text: str
+    rating: str                       # "accurate" | "inaccurate" | "partial"
+    original_briefing: str
+    driver_comment: str = ""
+    driver_id: str
+    driver_name: str
+
+
+class FeedbackResponse(BaseModel):
+    address_id: str
+    action_taken: str
+    message: str
+    correction_stored: bool
+
+
+class ConflictResponse(BaseModel):
+    address_id: str
+    has_conflict: bool
+    conflicting_facts: list[str]
+    resolved_truth: str
+    reasoning: str
+    confidence: str
