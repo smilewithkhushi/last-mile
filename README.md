@@ -1,8 +1,18 @@
-# Last Mile — Persistent Delivery-Site Memory
+<div align="center">
 
 <img src="assets/logo2.png" alt="Last Mile Logo" width="180"/>
 
-Last-mile delivery loses money every time a new driver rediscovers facts that a previous driver already knew — broken buzzers, gate codes, "dog on property," "only home after 5pm." Last Mile is a memory layer that captures those facts once and surfaces them to every future driver, regardless of whether they've ever been to that address before.
+# 📍 Last Mile
+### The address remembers, even when the driver doesn't.
+
+**Last Mile gives every delivery location a memory that survives driver turnover, missing pins, and confusing addresses.**
+
+[![Cognee](https://img.shields.io/badge/memory-Cognee-blueviolet)](https://www.cognee.ai)
+[![Python](https://img.shields.io/badge/backend-Python%20%2F%20FastAPI-3776AB)](https://fastapi.tiangolo.com/)
+
+[🎥 Demo Video](#) · [🚀 Live Demo](#)
+
+</div>
 
 ---
 
