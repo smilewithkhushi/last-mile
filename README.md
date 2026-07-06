@@ -114,11 +114,10 @@ Press `Ctrl+C` to stop both servers.
 
 | Variable | Required | Description |
 |---|---|---|
-| `LLM_PROVIDER` | yes | `openai`, `anthropic`, or `custom` (any OpenAI-compatible endpoint) |
-| `LLM_MODEL` | yes | Model name as litellm expects it, e.g. `gpt-4o-mini` or `openai/meta/llama-3.1-8b-instruct` |
-| `LLM_ENDPOINT` | if custom | Base URL of your OpenAI-compatible API, e.g. `https://integrate.api.nvidia.com/v1` |
-| `LLM_API_KEY` | yes | API key for the LLM provider — used by both Cognee and the agent layer |
-| `OPENAI_API_KEY` | if openai | Standard OpenAI key (leave placeholder if using a custom endpoint) |
+| `LLM_PROVIDER` | yes | `openai` or `anthropic` |
+| `LLM_MODEL` | yes | Model name as litellm expects it, e.g. `gpt-4o-mini` or `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
+| `LLM_ENDPOINT` | if non-OpenAI | Base URL for any OpenAI-compatible API, e.g. `https://integrate.api.nvidia.com/v1` |
+| `OPENAI_API_KEY` | if openai | OpenAI key — also used for NVIDIA NIM (`nvapi-...`) and other compatible providers |
 | `ANTHROPIC_API_KEY` | if anthropic | Anthropic key |
 | `COGNEE_API_KEY` | optional | Cognee Cloud key — enables agent session tracking in the Cognee dashboard |
 | `COGNEE_BASE_URL` | optional | Cognee Cloud tenant URL — defaults to the project tenant if unset |
@@ -131,12 +130,12 @@ The agent layer (`agents/_llm.py`) and Cognee both read the same env config, so 
 
 Tested providers:
 
-| Provider | `LLM_PROVIDER` | `LLM_MODEL` example |
-|---|---|---|
-| OpenAI | `openai` | `gpt-4o-mini` |
-| Anthropic | `anthropic` | `claude-haiku-4-5-20251001` |
-| NVIDIA NIM | `custom` | `openai/meta/llama-3.1-8b-instruct` |
-| Any OpenAI-compatible API | `custom` | set `LLM_ENDPOINT` to your base URL |
+| Provider | `LLM_PROVIDER` | `LLM_MODEL` example | Notes |
+|---|---|---|---|
+| OpenAI | `openai` | `gpt-4o-mini` | Set `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | `claude-haiku-4-5-20251001` | Set `ANTHROPIC_API_KEY` |
+| NVIDIA NIM | `openai` | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | Set `LLM_ENDPOINT` + `OPENAI_API_KEY=nvapi-...` |
+| Any OpenAI-compatible API | `openai` | your model name | Set `LLM_ENDPOINT` to your base URL |
 
 ---
 
