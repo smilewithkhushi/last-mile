@@ -34,37 +34,39 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Confidence badges */
-    .badge-HIGH       { background:#d4edda; color:#155724; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
-    .badge-MEDIUM     { background:#fff3cd; color:#856404; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
-    .badge-LOW        { background:#f8d7da; color:#721c24; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
-    .badge-COLD_START { background:#d1ecf1; color:#0c5460; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
+    .badge-HIGH       { background:#166534; color:#bbf7d0; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
+    .badge-MEDIUM     { background:#854d0e; color:#fef08a; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
+    .badge-LOW        { background:#7f1d1d; color:#fecaca; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
+    .badge-COLD_START { background:#164e63; color:#a5f3fc; padding:4px 12px; border-radius:20px; font-weight:600; font-size:0.85rem; }
 
     /* Briefing box */
     .briefing-box {
-        background: #f0f7ff;
-        border-left: 4px solid #2563eb;
+        background: #1e2a3a;
+        border-left: 4px solid #3b82f6;
         padding: 18px 20px;
         border-radius: 6px;
         margin: 12px 0;
         font-size: 1rem;
         line-height: 1.6;
+        color: #e2e8f0;
     }
 
     /* Stale warning */
     .stale-warning {
-        background: #fffbeb;
+        background: #2d2006;
         border: 1px solid #f59e0b;
         border-radius: 6px;
         padding: 10px 14px;
         margin: 8px 0;
         font-size: 0.9rem;
+        color: #fde68a;
     }
 
     /* Risk cards */
-    .risk-low      { background:#d4edda; border-radius:8px; padding:12px 16px; }
-    .risk-medium   { background:#fff3cd; border-radius:8px; padding:12px 16px; }
-    .risk-high     { background:#f8d7da; border-radius:8px; padding:12px 16px; }
-    .risk-critical { background:#f5c6cb; border-radius:8px; padding:12px 16px; border:2px solid #dc3545; }
+    .risk-low      { background:#14532d; color:#bbf7d0; border-radius:8px; padding:12px 16px; }
+    .risk-medium   { background:#422006; color:#fef08a; border-radius:8px; padding:12px 16px; }
+    .risk-high     { background:#7f1d1d; color:#fecaca; border-radius:8px; padding:12px 16px; }
+    .risk-critical { background:#450a0a; color:#fca5a5; border-radius:8px; padding:12px 16px; border:2px solid #ef4444; }
 
     /* Section label */
     .section-label {

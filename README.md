@@ -37,7 +37,7 @@ Drivers leave a short note after every delivery. The next driver, whether it's t
 
 ## 🏗️ Architecture
 
-<img src="assets/architecture_diagram.svg" alt="Last Mile System Architecture" width="100%"/>
+<img src="assets/architecture_diagram.png" alt="Last Mile System Architecture" width="100%"/>
 
 ---
 
@@ -98,7 +98,7 @@ India's quick-commerce and e-commerce platforms are pushing hard into Tier 2, 3,
 ```bash
 git clone https://github.com/smilewithkhushi/last-mile.git
 cd last-mile
-cp .env.example .env        # then fill in your API keys
+cp .env.example .env        # fill in your keys (see below)
 bash run.sh                 # creates venv, installs deps, starts everything
 ```
 
@@ -107,6 +107,36 @@ bash run.sh                 # creates venv, installs deps, starts everything
 - **Driver & Ops UI** → http://localhost:8501  
 
 Press `Ctrl+C` to stop both servers.
+
+---
+
+## 🔑 Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLM_PROVIDER` | yes | `openai`, `anthropic`, or `custom` (any OpenAI-compatible endpoint) |
+| `LLM_MODEL` | yes | Model name as litellm expects it, e.g. `gpt-4o-mini` or `openai/meta/llama-3.1-8b-instruct` |
+| `LLM_ENDPOINT` | if custom | Base URL of your OpenAI-compatible API, e.g. `https://integrate.api.nvidia.com/v1` |
+| `LLM_API_KEY` | yes | API key for the LLM provider — used by both Cognee and the agent layer |
+| `OPENAI_API_KEY` | if openai | Standard OpenAI key (leave placeholder if using a custom endpoint) |
+| `ANTHROPIC_API_KEY` | if anthropic | Anthropic key |
+| `COGNEE_API_KEY` | optional | Cognee Cloud key — enables agent session tracking in the Cognee dashboard |
+| `COGNEE_BASE_URL` | optional | Cognee Cloud tenant URL — defaults to the project tenant if unset |
+
+---
+
+## 🔌 LLM Provider Support
+
+The agent layer (`agents/_llm.py`) and Cognee both read the same env config, so **swapping the model in `.env` affects everything uniformly** — no code changes needed.
+
+Tested providers:
+
+| Provider | `LLM_PROVIDER` | `LLM_MODEL` example |
+|---|---|---|
+| OpenAI | `openai` | `gpt-4o-mini` |
+| Anthropic | `anthropic` | `claude-haiku-4-5-20251001` |
+| NVIDIA NIM | `custom` | `openai/meta/llama-3.1-8b-instruct` |
+| Any OpenAI-compatible API | `custom` | set `LLM_ENDPOINT` to your base URL |
 
 ---
 
