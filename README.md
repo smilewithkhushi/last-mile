@@ -41,6 +41,22 @@ Drivers leave a short note after every delivery. The next driver, whether it's t
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+
+| Driver App — Briefing | Driver App — Log a Note |
+|:---:|:---:|
+| <img src="assets/preview1.png" alt="Driver briefing view" width="420"/> | <img src="assets/preview2.png" alt="Log delivery note" width="420"/> |
+
+| Ops Dashboard — Address List | Ops Dashboard — Risk & Conflict |
+|:---:|:---:|
+| <img src="assets/preview3.png" alt="Ops dashboard" width="420"/> | <img src="assets/preview4.png" alt="Risk assessment and conflict resolution" width="420"/> |
+
+</div>
+
+---
+
 ## ✨ Features
 
 - 📝 **Note capture** — drivers log what they learn in seconds, landmark or formal address
